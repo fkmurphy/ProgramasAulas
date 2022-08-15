@@ -165,10 +165,10 @@ class MiProgramaController extends Controller
         $programa->scenario = 'carrerap';
         $userId = \Yii::$app->user->identity->id;
         $estadoActual = Status::findOne($programa->status_id);
-        $porcentajeCarga = 60;
-        if ($estadoActual->descripcion == "Borrador"){
-          if($programa->calcularPorcentajeCarga() < $porcentajeCarga) {
-            Yii::error("Error al enviar programa con ID: ".$id.", menos del ".$porcentajeCarga." cargado",'estado-programa');
+        //$porcentajeCarga = 60; deprecated 19jul2022
+        if ($estadoActual->descriptionIs(Status::BORRADOR)){
+          if(!$programa->hasMinimumLoadPercentage()) {
+            Yii::error("Error al enviar programa con ID: ".$id.", menos del ". Programa::MIN_LOAD_PERCENTAGE ." cargado",'estado-programa');
             Yii::$app->session->setFlash('danger','Debe completar el programa un 60%');
             return $this->redirect(['cargar','id' => $programa->id]);
           } else if ($programa->created_by == $userId){
@@ -186,14 +186,14 @@ class MiProgramaController extends Controller
           }
         }
        if (PermisosHelpers::requerirRol("Departamento")
-        && $estadoActual->descripcion == "Profesor"
+        && $estadoActual->descriptionIs(Status::EN_ESPERA)
         && $programa->created_by != $userId ){
           Yii::$app->session->setFlash('danger','Debe pedir el programa antes de seguir');
           return $this->redirect(['index']);
        }
-       if( (PermisosHelpers::requerirDirector($id) && ($estadoActual->descripcion == "Departamento")) ||
-          (PermisosHelpers::requerirRol("Adm_academica") && $estadoActual->descripcion == "Administración Académica") ||
-          (PermisosHelpers::requerirRol("Sec_academica") && $estadoActual->descripcion == "Secretaría Académica")
+       if( (PermisosHelpers::requerirDirector($id) && ($estadoActual->descriptionIs(Status::DEPARTAMENTO))) ||
+          (PermisosHelpers::requerirRol("Adm_academica") && $estadoActual->descriptionIs(Status::ADMINISTRACION_ACADEMICA)) ||
+          (PermisosHelpers::requerirRol("Sec_academica") && $estadoActual->descriptionIs(Status::SECRETARIA_ACADEMICA))
         ){
           if($programa->subirEstado() && $programa->save()){
             Yii::info("Subió el estado del programa:".$id." Estaba en estado: ".$estadoActual->descripcion,'estado-programa');
@@ -212,7 +212,7 @@ class MiProgramaController extends Controller
         $userId = \Yii::$app->user->identity->id;
         $estadoActual = Status::findOne($programa->status_id);
 
-        if ($estadoActual->descripcion == "Borrador" || $estadoActual->descripcion == "Profesor"){
+        if ($estadoActual->descriptionIs(Status::BORRADOR) || $estadoActual->descriptionIs(Status::EN_ESPERA)){
           Yii::error("No pudo rechazar el programa ID:".$id." con estado:".$estadoActual->descripcion,'estado-programa');
           Yii::$app->session->setFlash('danger','Hubo un problema al intentar rechazar el programa');
           return $this->redirect(['index']);

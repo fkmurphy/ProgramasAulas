@@ -228,12 +228,14 @@ class ProgramaController extends Controller
         $userId = \Yii::$app->user->identity->id;
         $estadoActual = Status::findOne($programa->status_id);
 
-        if ($estadoActual->descripcion == "Borrador" || $estadoActual->descripcion == "Profesor"){
+        if ($estadoActual->descripcion == "Borrador" || $estadoActual->descripcion == "En espera"){
           Yii::error("No pudo rechazar el programa ID:".$id." con estado:".$estadoActual->descripcion,'estado-programa');
 
           Yii::$app->session->setFlash('danger','Hubo un problema al intentar rechazar el programa');
           return $this->redirect(['evaluacion']);
         }
+
+        // bajar estado al minimo (del departamento a borrador)
         if((PermisosHelpers::requerirDirector($id)  || PermisosHelpers::requerirMinimoRol("Admin")) && $estadoActual->descripcion == "Departamento"){
             if ($programa->setEstado("Borrador") && $programa->save()){
               Yii::info("Cambió el estado de Departamento -> Borrador ID:".$id,'estado-programa');
@@ -249,6 +251,7 @@ class ProgramaController extends Controller
             }
         }
 
+        // Si está más avanzado, devolver al estado anterior.
         if((PermisosHelpers::requerirRol("Adm_academica") && $estadoActual->descripcion == "Administración Académica") ||
           (PermisosHelpers::requerirRol("Sec_academica") && $estadoActual->descripcion == "Secretaría Académica") ||
           (PermisosHelpers::requerirMinimoRol("Admin"))
@@ -281,7 +284,7 @@ class ProgramaController extends Controller
         $model = new Programa();
         $model->scenario = 'crear';
         // se crea en estado borrador
-        $model->status_id = Status::find()->where(['=','descripcion','Borrador'])->one()->id;
+        $model->status_id = Status::initialStatus();
         //obtener el id del director
         $userId = \Yii::$app->user->identity->id;
         if (PermisosHelpers::requerirRol('Departamento')){
@@ -369,10 +372,10 @@ class ProgramaController extends Controller
         //if (PermisosHelpers::requerirRol('Profesor') &&
         //  ($estado->descripcion == "Profesor") && ($model->created_by == $userId)) {
         if (PermisosHelpers::requerirRol('Profesor') &&
-          ($estado->descripcion == "Profesor")) {
+          ($estado->descriptionIs(Status::EN_ESPERA))) {
             return true;
         } else if (PermisosHelpers::requerirDirector($model->id) &&
-          ($estado->descripcion == "Borrador")) {
+          ($estado->descriptionIs(Status::BORRADOR))) {
               return true;
         }
         if(PermisosHelpers::requerirMinimoRol('Admin')){
